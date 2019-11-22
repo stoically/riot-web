@@ -387,6 +387,17 @@ ipcMain.on('seshat', async function(ev, payload) {
             }
             break;
 
+        case 'indexSize':
+            if (eventIndex === null) ret = 0;
+            else {
+                try {
+                    ret = await eventIndex.getSize();
+                } catch (e) {
+                    ret = 0;
+                }
+            }
+            break;
+
         default:
             mainWindow.webContents.send('seshatReply', {
                 id: payload.id,
