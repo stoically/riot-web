@@ -90,7 +90,7 @@ echo -en 'travis_fold:end:matrix-js-sdk\r'
 echo -en 'travis_fold:start:matrix-react-sdk\r'
 echo 'Setting up matrix-react-sdk'
 
-dodep matrix-org matrix-react-sdk
+dodep stoically matrix-react-sdk
 
 pushd matrix-react-sdk
 yarn link

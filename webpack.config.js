@@ -1,4 +1,5 @@
 const path = require('path');
+const {spawn} = require('child_process');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const TerserPlugin = require('terser-webpack-plugin');
@@ -19,6 +20,42 @@ module.exports = (env, argv) => {
         // This makes the sourcemaps human readable for developers. We use eval-source-map
         // because the plain source-map devtool ruins the alignment.
         development['devtool'] = 'eval-source-map';
+    }
+
+    // The generated JS (and CSS, from the extraction plugin) are put in a
+    // unique subdirectory for the build. There will only be one such
+    // 'bundle' directory in the generated tarball; however, hosting
+    // servers can collect 'bundles' from multiple versions into one
+    // directory and symlink it into place - this allows users who loaded
+    // an older version of the application to continue to access webpack
+    // chunks even after the app is redeployed.
+    let bundlesDir = "bundles/[hash]";
+    let writeToDisk = true;
+
+    // Minification is normally enabled by default for webpack in production mode, but
+    // we use a CSS optimizer too and need to manage it ourselves.
+    let minimize = argv.mode === 'production';
+    let minimizer = argv.mode === 'production' ? [new TerserPlugin({}), new OptimizeCSSAssetsPlugin({})] : [];
+
+    if (argv.mode === "development") {
+        bundlesDir = "bundles/_dev_";
+        writeToDisk = false;
+    }
+
+    // build-target specific behavior
+    let buildTargetPlugins = [];
+    switch (process.env.BUILD_TARGET) {
+        case "webext":
+            bundlesDir = "bundles/webext";
+            writeToDisk = true;
+
+            if (argv.mode === "development") {
+                minimize = false;
+                minimizer = [];
+                buildTargetPlugins = [new WebExtDevPlugin()];
+                development['devtool'] = "source-map";
+            }
+            break;
     }
 
     // Resolve the directories for the react-sdk and js-sdk for later use. We resolve these early so we
@@ -54,6 +91,15 @@ module.exports = (env, argv) => {
                         enforce: true,
                         // Do not add `chunks: 'all'` here because you'll break the app entry point.
                     },
+                    vendor: {
+                        test: /[\\/]node_modules[\\/]/,
+                        name: 'vendor',
+                        enforce: true,
+                        chunks: (chunk) => {
+                            // exclude `indexeddb-worker`
+                            return chunk.name !== 'indexeddb-worker';
+                        },
+                    },
                 },
             },
 
@@ -61,10 +107,8 @@ module.exports = (env, argv) => {
             // See https://github.com/webpack/webpack/issues/7128 for more info.
             namedModules: false,
 
-            // Minification is normally enabled by default for webpack in production mode, but
-            // we use a CSS optimizer too and need to manage it ourselves.
-            minimize: argv.mode === 'production',
-            minimizer: argv.mode === 'production' ? [new TerserPlugin({}), new OptimizeCSSAssetsPlugin({})] : [],
+            minimize,
+            minimizer,
         },
 
         resolve: {
@@ -290,7 +334,7 @@ module.exports = (env, argv) => {
 
             // This exports our CSS using the splitChunks and loaders above.
             new MiniCssExtractPlugin({
-                filename: 'bundles/[hash]/[name].css',
+                filename: `${bundlesDir}/[name].css`,
                 ignoreOrder: false, // Enable to remove warnings about conflicting order
             }),
 
@@ -305,7 +349,8 @@ module.exports = (env, argv) => {
                 excludeChunks: ['mobileguide'],
                 minify: argv.mode === 'production',
                 vars: {
-                    og_image_url: og_image_url,
+                    og_image_url,
+                    build_target: process.env.BUILD_TARGET,
                 },
             }),
 
@@ -316,20 +361,15 @@ module.exports = (env, argv) => {
                 minify: argv.mode === 'production',
                 chunks: ['mobileguide'],
             }),
+
+            ...buildTargetPlugins,
         ],
 
         output: {
             path: path.join(__dirname, "webapp"),
 
-            // The generated JS (and CSS, from the extraction plugin) are put in a
-            // unique subdirectory for the build. There will only be one such
-            // 'bundle' directory in the generated tarball; however, hosting
-            // servers can collect 'bundles' from multiple versions into one
-            // directory and symlink it into place - this allows users who loaded
-            // an older version of the application to continue to access webpack
-            // chunks even after the app is redeployed.
-            filename: "bundles/[hash]/[name].js",
-            chunkFilename: "bundles/[hash]/[name].js",
+            filename: `${bundlesDir}/[name].js`,
+            chunkFilename: `${bundlesDir}/[name].js`,
         },
 
         // configuration for the webpack-dev-server
@@ -346,6 +386,8 @@ module.exports = (env, argv) => {
             // tedious in Riot since that can take a while.
             hot: false,
             inline: false,
+
+            writeToDisk,
         },
     };
 };
@@ -372,4 +414,34 @@ function getImgOutputPath(url, resourcePath) {
  */
 function toPublicPath(path) {
     return path.replace(/\\/g, '/');
+}
+
+/**
+ * Runs ./scripts/copy-riot-web.sh in parent directory, which is
+ * Riot WebExtension's build directory
+ */
+function WebExtDevPlugin() {
+    return {
+        apply(compiler) {
+            compiler.hooks.afterEmit.tap('WebExtDevCopy', () => {
+                const child = spawn("./scripts/copy-riot-web.sh", {
+                    cwd: path.resolve(path.join(__dirname, ".."))
+                });
+
+                child.stdout.on('data', function(data) {
+                    console.log(data.toString()); 
+                });
+
+                child.stderr.on('data', function(data) {
+                    console.log(data.toString()); 
+                });
+
+                child.on("close", (error) => {
+                    if (error) {
+                    throw error;
+                    }
+                })
+            });
+        }
+    }
 }
