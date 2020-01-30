@@ -242,7 +242,7 @@ export async function loadApp() {
         return;
     }
 
-    const validBrowser = checkBrowserFeatures();
+    const validBrowser = platform.forceValidBrowser() || checkBrowserFeatures();
 
     const acceptInvalidBrowser = window.localStorage && window.localStorage.getItem('mx_accepts_unsupported_browser');
 
