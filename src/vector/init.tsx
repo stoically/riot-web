@@ -28,7 +28,8 @@ import SettingsStore from "matrix-react-sdk/src/settings/SettingsStore";
 import ElectronPlatform from "./platform/ElectronPlatform";
 import PWAPlatform from "./platform/PWAPlatform";
 import WebPlatform from "./platform/WebPlatform";
-import PlatformPeg from "matrix-react-sdk/src/PlatformPeg";
+import WebExtensionPlatform from "./platform/WebExtensionPlatform";
+import PlatformPeg from 'matrix-react-sdk/src/PlatformPeg';
 import SdkConfig from "matrix-react-sdk/src/SdkConfig";
 import {setTheme} from "matrix-react-sdk/src/theme";
 
@@ -44,6 +45,12 @@ export function preparePlatform() {
     } else if (window.matchMedia('(display-mode: standalone)').matches) {
         console.log("Using PWA platform");
         PlatformPeg.set(new PWAPlatform());
+        const plaf = new ElectronPlatform();
+        PlatformPeg.set(plaf);
+    } else if ((window as any).browser?.runtime) {
+        console.log("Using WebExtension platform");
+        const plaf = new WebExtensionPlatform();
+        PlatformPeg.set(plaf);
     } else {
         console.log("Using Web platform");
         PlatformPeg.set(new WebPlatform());
