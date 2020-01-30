@@ -51,6 +51,7 @@ import {parseQs, parseQsFromFragment} from './url_utils';
 
 import ElectronPlatform from './platform/ElectronPlatform';
 import WebPlatform from './platform/WebPlatform';
+import WebExtensionPlatform from './platform/WebExtensionPlatform';
 
 import {MatrixClientPeg} from 'matrix-react-sdk/src/MatrixClientPeg';
 import SettingsStore from "matrix-react-sdk/src/settings/SettingsStore";
@@ -190,6 +191,10 @@ async function loadApp() {
     if (window.ipcRenderer) {
         console.log("Using Electron platform");
         const plaf = new ElectronPlatform();
+        PlatformPeg.set(plaf);
+    } else if (window.browser && window.browser.runtime) {
+        console.log("Using WebExtension platform");
+        const plaf = new WebExtensionPlatform();
         PlatformPeg.set(plaf);
     } else {
         console.log("Using Web platform");
