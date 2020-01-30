@@ -27,10 +27,12 @@ require('highlight.js/styles/github.css');
 
 // These are things that can run before the skin loads - be careful not to reference the react-sdk though.
 import './rageshakesetup';
-import './modernizr';
+
+// Remove modernizr completely for the WebExtension platform, since we're in a controlled environment
+//import './modernizr';
 
 // load service worker if available on this platform
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && !(window.browser && window.browser.runtime)) {
     navigator.serviceWorker.register('sw.js');
 }
 
