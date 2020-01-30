@@ -78,10 +78,11 @@ function checkBrowserFeatures() {
     return featureComplete;
 }
 
-let acceptBrowser = checkBrowserFeatures();
-if (!acceptBrowser && window.localStorage) {
-    acceptBrowser = Boolean(window.localStorage.getItem("mx_accepts_unsupported_browser"));
-}
+const acceptBrowser = true;
+// let acceptBrowser = checkBrowserFeatures();
+// if (!acceptBrowser && window.localStorage) {
+//     acceptBrowser = Boolean(window.localStorage.getItem("mx_accepts_unsupported_browser"));
+// }
 
 // React depends on Map & Set which we check for using modernizr's es6collections
 // if modernizr fails we may not have a functional react to show the error message.
