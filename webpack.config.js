@@ -25,6 +25,40 @@ module.exports = (env, argv) => {
         development['devtool'] = 'eval-source-map';
     }
 
+    // The generated JS (and CSS, from the extraction plugin) are put in a
+    // unique subdirectory for the build. There will only be one such
+    // 'bundle' directory in the generated tarball; however, hosting
+    // servers can collect 'bundles' from multiple versions into one
+    // directory and symlink it into place - this allows users who loaded
+    // an older version of the application to continue to access webpack
+    // chunks even after the app is redeployed.
+    let bundlesDir = "bundles/[hash]";
+    let writeToDisk = true;
+
+    // Minification is normally enabled by default for webpack in production mode, but
+    // we use a CSS optimizer too and need to manage it ourselves.
+    let minimize = argv.mode === 'production';
+    let minimizer = argv.mode === 'production' ? [new TerserPlugin({}), new OptimizeCSSAssetsPlugin({})] : [];
+
+    if (argv.mode === "development") {
+        bundlesDir = "bundles/_dev_";
+        writeToDisk = false;
+    }
+
+    // build-target specific behavior
+    switch (process.env.BUILD_TARGET) {
+        case "webext":
+            bundlesDir = "bundles/webext";
+            writeToDisk = true;
+
+            if (argv.mode === "development") {
+                minimize = false;
+                minimizer = [];
+                development['devtool'] = "source-map";
+            }
+            break;
+    }
+
     // Resolve the directories for the react-sdk and js-sdk for later use. We resolve these early so we
     // don't have to call them over and over. We also resolve to the package.json instead of the src
     // directory so we don't have to rely on a index.js or similar file existing.
@@ -56,6 +90,27 @@ module.exports = (env, argv) => {
             // now we need to consider that the CSS needs to be bundled up together.
             splitChunks: {
                 cacheGroups: {
+                    vendor: {
+                        test: (mod) => {                            
+                            return mod && mod.resource && (
+                                // Required from the sdks (primarly for `develop`)
+                                mod.resource.includes(path.join("matrix-react-sdk", "node_modules")) ||
+                                mod.resource.includes(path.join("matrix-js-sdk", "node_modules")) ||
+                                // Directly required vendor libs
+                                (mod.resource.includes(`${path.sep}node_modules${path.sep}`) && (
+                                    !mod.resource.includes(`${path.sep}matrix-react-sdk${path.sep}`) &&
+                                    !mod.resource.includes(`${path.sep}matrix-js-sdk${path.sep}`)
+                                ))
+                            );
+                        },
+                        name: 'vendor',
+                        enforce: true,
+                        chunks: (chunk) => {
+                            // exclude `indexeddb-worker` because it runs in a different context
+                            // and thus cannot know about vendor libs
+                            return chunk.name !== 'indexeddb-worker';
+                        },
+                    },
                     styles: {
                         name: 'styles',
                         test: /\.css$/,
@@ -72,10 +127,8 @@ module.exports = (env, argv) => {
             // See https://github.com/webpack/webpack/issues/7128 for more info.
             namedModules: false,
 
-            // Minification is normally enabled by default for webpack in production mode, but
-            // we use a CSS optimizer too and need to manage it ourselves.
-            minimize: argv.mode === 'production',
-            minimizer: argv.mode === 'production' ? [new TerserPlugin({}), new OptimizeCSSAssetsPlugin({})] : [],
+            minimize,
+            minimizer,
         },
 
         resolve: {
@@ -300,7 +353,7 @@ module.exports = (env, argv) => {
         plugins: [
             // This exports our CSS using the splitChunks and loaders above.
             new MiniCssExtractPlugin({
-                filename: 'bundles/[hash]/[name].css',
+                filename: `${bundlesDir}/[name].css`,
                 ignoreOrder: false, // Enable to remove warnings about conflicting order
             }),
 
@@ -315,7 +368,8 @@ module.exports = (env, argv) => {
                 excludeChunks: ['mobileguide', 'usercontent', 'jitsi'],
                 minify: argv.mode === 'production',
                 vars: {
-                    og_image_url: og_image_url,
+                    og_image_url,
+                    build_target: process.env.BUILD_TARGET,
                 },
             }),
 
@@ -361,15 +415,8 @@ module.exports = (env, argv) => {
         output: {
             path: path.join(__dirname, "webapp"),
 
-            // The generated JS (and CSS, from the extraction plugin) are put in a
-            // unique subdirectory for the build. There will only be one such
-            // 'bundle' directory in the generated tarball; however, hosting
-            // servers can collect 'bundles' from multiple versions into one
-            // directory and symlink it into place - this allows users who loaded
-            // an older version of the application to continue to access webpack
-            // chunks even after the app is redeployed.
-            filename: "bundles/[hash]/[name].js",
-            chunkFilename: "bundles/[hash]/[name].js",
+            filename: `${bundlesDir}/[name].js`,
+            chunkFilename: `${bundlesDir}/[name].js`,
         },
 
         // configuration for the webpack-dev-server
@@ -386,6 +433,8 @@ module.exports = (env, argv) => {
             // tedious in Riot since that can take a while.
             hot: false,
             inline: false,
+
+            writeToDisk,
         },
     };
 };
