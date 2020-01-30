@@ -52,7 +52,7 @@
   <body style="height: 100%; margin: 0;" data-vector-indexeddb-worker-script="<%= htmlWebpackPlugin.files.chunks['indexeddb-worker'].entry %>">
     <noscript>Sorry, Riot requires JavaScript to be enabled.</noscript> <!-- TODO: Translate this? -->
     <section id="matrixchat" style="height: 100%; overflow: auto;"></section>
-    <script src="<%= htmlWebpackPlugin.files.chunks['bundle'].entry %>"></script>
+    <script src="/riot.js"></script>
     <img src="<%= require('matrix-react-sdk/res/img/warning.svg') %>" width="24" height="23" style="visibility: hidden; position: absolute; top: 0px; left: 0px;"/>
     <img src="<%= require('matrix-react-sdk/res/img/e2e/warning.svg') %>" width="24" height="23" style="visibility: hidden; position: absolute; top: 0px; left: 0px;"/>
     <img src="<%= require('matrix-react-sdk/res/img/feather-customised/warning-triangle.svg') %>" width="24" height="23" style="visibility: hidden; position: absolute; top: 0px; left: 0px;"/>
